@@ -41,14 +41,21 @@ export class WHIPClient extends EventEmitter {
   private mediaMids: Array<string> = [];
   private whipProtocol: WHIPProtocol;
   private peerConnectionFactory: (configuration: RTCConfiguration) => RTCPeerConnection;
+  private iceCollected: {
+    promise: any
+    resolve: any
+  } = {
+    promise: null,
+    resolve: null,
+  }
 
   constructor({ endpoint, opts, whipProtocol, peerConnectionFactory }: WHIPClientConstructor) {
     super();
     this.whipEndpoint = new URL(endpoint);
     this.opts = opts;
     this.whipProtocol = whipProtocol ? whipProtocol : new WHIPProtocol();
-    this.peerConnectionFactory = peerConnectionFactory ? 
-      peerConnectionFactory : 
+    this.peerConnectionFactory = peerConnectionFactory ?
+      peerConnectionFactory :
       (configuration: RTCConfiguration) => new RTCPeerConnection(configuration);
     this.initPeer();
   }
@@ -134,13 +141,20 @@ export class WHIPClient extends EventEmitter {
     }
     const candidateEvent = <RTCPeerConnectionIceEvent>(event);
     const candidate: RTCIceCandidate | null = candidateEvent.candidate;
-    if (!candidate) {
-      return;
+    console.error("onIceCandidate", event, this.iceCollected.resolve)
+    if (this.iceCollected.resolve) {
+      if (!candidate) {
+        this.iceCollected.resolve()
+        return;
+      }
+    }else{
+      if (!candidate) {
+        return;
+      }
+      const trickleIceSDP = this.makeTrickleIceSdpFragment(candidate);
+      const url = await this.getResourceUrl();
+      this.whipProtocol.updateIce(url, this.eTag, trickleIceSDP)
     }
-
-    const trickleIceSDP = this.makeTrickleIceSdpFragment(candidate);
-    const url = await this.getResourceUrl();
-    this.whipProtocol.updateIce(url, this.eTag, trickleIceSDP)
   }
 
   async onConnectionStateChange(event: Event) {
@@ -160,12 +174,23 @@ export class WHIPClient extends EventEmitter {
 
   private async startSdpExchange(): Promise<void> {
     // https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Connectivity
-    // 
+    //
     // Client peer creates an offer
     const sdpOffer = await this.peer.createOffer({
       offerToReceiveAudio: false,
       offerToReceiveVideo: false,
     });
+
+    this.iceCollected.promise = new Promise((resolve)=>{
+      this.iceCollected.resolve = resolve
+    })
+    this.peer.setLocalDescription(sdpOffer)
+    await this.iceCollected.promise
+    this.iceCollected = {
+      promise: null,
+      resolve: null,
+    }
+    console.error("ice waited")
 
     const parsedOffer: SessionDescription | undefined = sdpOffer.sdp && parse(sdpOffer.sdp);
     if (!parsedOffer) {
@@ -207,7 +232,7 @@ export class WHIPClient extends EventEmitter {
       this.eTag = response.headers.get("ETag");
       this.log("eTag", this.eTag);
 
-      this.extensions = response.headers.get("Link").split(",").map(v => v.trimStart());
+      // this.extensions = response.headers.get("Link").split(",").map(v => v.trimStart());
       this.log("WHIP Resource Extensions", this.extensions);
 
       if (this.resourceResolve) {
@@ -255,6 +280,7 @@ export class WHIPClient extends EventEmitter {
   }
 
   setupBackChannel() {
+    console.error("setupBackChannel")
     const channel = this.peer.createDataChannel("backchannel");
     channel.onmessage = (ev) => {
       this.emit("message", ev.data);

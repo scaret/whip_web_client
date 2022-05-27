@@ -53,7 +53,7 @@ async function createClientItem(client: WHIPClient) {
   });
 
   deleteBtn.innerText = "Delete";
-  deleteBtn.onclick = async () => { 
+  deleteBtn.onclick = async () => {
     await client.destroy();
     details.parentNode?.removeChild(details);
     updateChannelList(channelListUrl);
@@ -99,7 +99,7 @@ async function ingest(client: WHIPClient, mediaStream: MediaStream) {
   likesCount = 0;
 }
 
-function updateViewerCount(count) {  
+function updateViewerCount(count) {
   const viewers =
     document.querySelector<HTMLSpanElement>("#viewers");
   viewers.innerHTML = `${count} viewer${count > 1 ? "s" : ""}`;
@@ -139,11 +139,11 @@ async function createClient(url: string, iceConfigRemote: boolean, opts: WHIPCli
     endpoint: url,
     opts: opts,
   });
-  if (iceConfigRemote) {
-    await client.setIceServersFromEndpoint();
-  }
-
-  client.setupBackChannel();
+  // if (iceConfigRemote) {
+  //   await client.setIceServersFromEndpoint();
+  // }
+  //
+  // client.setupBackChannel();
   client.on("message", onMessage);
 
   return client;
@@ -160,13 +160,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   let authkey;
   if (process.env.NODE_ENV === "development") {
     const protocol = process.env.TLS_TERMINATION_ENABLED ? "https" : "http";
-    input.value = `${protocol}://${window.location.hostname}:8000/api/v1/whip/broadcaster`;
+    input.value = `https://roomserver-greytest.netease.im/v1/whip/endpoint/publish?streamUri=room001&appkey=34941137369d28603fe90308ebb3047c`;
     authkey = "devkey";
   } else if (process.env.NODE_ENV === "awsdev") {
-    input.value = "https://whip.dev.eyevinn.technology/api/v1/whip/broadcaster";
+    input.value = "https://roomserver-greytest.netease.im/v1/whip/endpoint/publish?streamUri=room001&appkey=34941137369d28603fe90308ebb3047c";
     authkey = process.env.API_KEY;
   } else {
-    input.value = "https://broadcaster-whip.prod.eyevinn.technology/api/v1/whip/broadcaster";
+    input.value = "https://roomserver-greytest.netease.im/v1/whip/endpoint/publish?streamUri=room001&appkey=34941137369d28603fe90308ebb3047c";
     authkey = process.env.API_KEY;
   }
 
@@ -174,7 +174,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const iceConfigRemote = !!(process.env.NODE_ENV === "development" || process.env.ICE_CONFIG_REMOTE);
 
   ingestCamera.addEventListener("click", async () => {
-    const client = await createClient(input.value, iceConfigRemote, { 
+    const client = await createClient(input.value, iceConfigRemote, {
       debug: debug, iceServers: getIceServers(), authkey: authkey }
     );
     const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -185,7 +185,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   ingestScreen.addEventListener("click", async () => {
-    const client = await createClient(input.value, iceConfigRemote, { 
+    const client = await createClient(input.value, iceConfigRemote, {
       debug: debug, iceServers: getIceServers(), authkey: authkey }
     );
     const mediaStream = await navigator.mediaDevices.getDisplayMedia();
